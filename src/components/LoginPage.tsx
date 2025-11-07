@@ -1,13 +1,36 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import { UserPlus, LogIn, Mail, Lock, User, Sparkles, Zap, Heart, Star, Crown, Gem } from "lucide-react";
-import { motion, AnimatePresence, useAnimation } from "framer-motion";
+import type { LucideIcon } from "lucide-react";
+import {
+  UserPlus,
+  LogIn,
+  Mail,
+  User,
+  Sparkles,
+  Zap,
+  Star,
+  AlertCircle,
+  ShieldCheck,
+  Gamepad2,
+  Trophy,
+  KeyRound,
+} from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { motion, AnimatePresence } from "framer-motion";
 import Particles from "@tsparticles/react";
-import { loadFull } from "tsparticles";
 
 interface LoginPageProps {
   onLogin: (username: string) => void;
@@ -15,36 +38,218 @@ interface LoginPageProps {
 
 const apiBaseUrl = import.meta.env.VITE_BASE_API;
 
+type RegisterField = "username" | "email" | "password" | "confirmPassword";
+
+type DialogTone = "success" | "error" | "info";
+
+interface FeatureHighlight {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  gradient: string;
+}
+
+const featureHighlights: FeatureHighlight[] = [
+  {
+    icon: ShieldCheck,
+    title: "Secure Progress",
+    description: "JWT-powered sessions keep your banana stash safe and synced.",
+    gradient: "from-emerald-400 via-emerald-500 to-green-500",
+  },
+  {
+    icon: Gamepad2,
+    title: "Arcade-Ready Controls",
+    description: "Snappy event loops deliver buttery-smooth moves on every device.",
+    gradient: "from-indigo-400 via-purple-500 to-pink-500",
+  },
+  {
+    icon: Trophy,
+    title: "Climb The Rankings",
+    description: "Track high scores in real time and flex on the global leaderboard.",
+    gradient: "from-amber-400 via-orange-500 to-red-500",
+  },
+];
+
+const initialRegisterState = {
+  username: "",
+  email: "",
+  password: "",
+  confirmPassword: "",
+};
+
+type RegisterFormState = typeof initialRegisterState;
+
+const initialRegisterErrors: Record<RegisterField, string> = {
+  username: "",
+  email: "",
+  password: "",
+  confirmPassword: "",
+};
+
+const initialRegisterTouched: Record<RegisterField, boolean> = {
+  username: false,
+  email: false,
+  password: false,
+  confirmPassword: false,
+};
+
+const dialogToneStyles: Record<DialogTone, { gradient: string; titleClass: string }> = {
+  success: {
+    gradient: "from-emerald-500 to-lime-500",
+    titleClass: "text-emerald-600",
+  },
+  error: {
+    gradient: "from-rose-500 to-orange-500",
+    titleClass: "text-rose-600",
+  },
+  info: {
+    gradient: "from-sky-500 to-indigo-500",
+    titleClass: "text-sky-600",
+  },
+};
+
+const scoreboardTeasers = [
+  {
+    label: "Today's Top Score",
+    value: "98,720 pts",
+    accent: "text-emerald-500",
+  },
+  {
+    label: "Live Combo Chain",
+    value: "x12 streak",
+    accent: "text-sky-500",
+  },
+  {
+    label: "Bananas Collected",
+    value: "3,421",
+    accent: "text-amber-500",
+  },
+];
+
 const LoginPage = ({ onLogin }: LoginPageProps) => {
   const [loginData, setLoginData] = useState({ username: "", password: "" });
-  const [registerData, setRegisterData] = useState({ username: "", email: "", password: "", confirmPassword: "" });
+  const [registerData, setRegisterData] = useState<RegisterFormState>(initialRegisterState);
+  const [registerErrors, setRegisterErrors] = useState<Record<RegisterField, string>>(initialRegisterErrors);
+  const [registerTouched, setRegisterTouched] = useState<Record<RegisterField, boolean>>(initialRegisterTouched);
+  const [dialogState, setDialogState] = useState<{ open: boolean; title: string; description: string; tone: DialogTone }>(
+    {
+      open: false,
+      title: "",
+      description: "",
+      tone: "info",
+    },
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const { toast } = useToast();
-  const controls = useAnimation();
 
-  useEffect(() => {
-    const animateBackground = async () => {
-      await controls.start({
-        background: [
-          "linear-gradient(45deg, #fef3c7, #fde68a, #f59e0b)",
-          "linear-gradient(135deg, #fef3c7, #fbbf24, #d97706)",
-          "linear-gradient(225deg, #fef3c7, #fde68a, #f59e0b)",
-          "linear-gradient(315deg, #fef3c7, #fbbf24, #d97706)",
-        ],
-        transition: {
-          duration: 8,
-          repeat: Infinity,
-          repeatType: "reverse",
-        },
-      });
-    };
-    animateBackground();
-  }, [controls]);
-
-  const particlesInit = async (main: any) => {
-    await loadFull(main);
+  const showDialog = (tone: DialogTone, title: string, description: string) => {
+    setDialogState({ open: true, tone, title, description });
   };
+
+  const validateRegisterField = (field: RegisterField, value: string, data: RegisterFormState = registerData): string => {
+    const trimmed = value.trim();
+
+    switch (field) {
+      case "username":
+        if (!trimmed) return "Username is required.";
+        if (trimmed.length < 3) return "Username must be at least 3 characters.";
+        if (!/^[A-Za-z0-9_]+$/.test(trimmed)) return "Only letters, numbers, and underscores are allowed.";
+        return "";
+      case "email":
+        if (!trimmed) return "Email is required.";
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return "Please enter a valid email address.";
+        return "";
+      case "password":
+        if (!value) return "Password is required.";
+        if (value.length < 8) return "Password must be at least 8 characters.";
+        if (!/[A-Z]/.test(value) || !/[a-z]/.test(value) || !/[0-9]/.test(value)) {
+          return "Use upper & lower case letters plus a number for strength.";
+        }
+        return "";
+      case "confirmPassword":
+        if (!value) return "Please confirm your password.";
+        if (value !== data.password) return "Passwords do not match.";
+        return "";
+      default:
+        return "";
+    }
+  };
+
+  const composeErrorList = (errors: Record<RegisterField, string>) =>
+    Object.values(errors)
+      .filter(Boolean)
+      .map((message) => `• ${message}`)
+      .join("\n");
+
+  const validateRegisterForm = (data: RegisterFormState = registerData) => {
+    const evaluatedErrors: Record<RegisterField, string> = {
+      username: validateRegisterField("username", data.username, data),
+      email: validateRegisterField("email", data.email, data),
+      password: validateRegisterField("password", data.password, data),
+      confirmPassword: validateRegisterField("confirmPassword", data.confirmPassword, data),
+    };
+
+    setRegisterErrors(evaluatedErrors);
+    setRegisterTouched({
+      username: true,
+      email: true,
+      password: true,
+      confirmPassword: true,
+    });
+
+    const hasErrors = Object.values(evaluatedErrors).some(Boolean);
+
+    if (hasErrors) {
+      showDialog("error", "Please review your details", composeErrorList(evaluatedErrors));
+    }
+
+    return !hasErrors;
+  };
+
+  const handleRegisterInputChange = (field: RegisterField, value: string) => {
+    setRegisterData((prev) => {
+      const updated = { ...prev, [field]: value } as RegisterFormState;
+      setRegisterErrors((prevErrors) => {
+        const nextErrors = {
+          ...prevErrors,
+          [field]: validateRegisterField(field, value, updated),
+        } as Record<RegisterField, string>;
+
+        if (field === "password" && registerTouched.confirmPassword) {
+          nextErrors.confirmPassword = validateRegisterField("confirmPassword", updated.confirmPassword, updated);
+        }
+
+        return nextErrors;
+      });
+      return updated;
+    });
+  };
+
+  const handleRegisterBlur = (field: RegisterField) => {
+    setFocusedField(null);
+    setRegisterTouched((prev) => ({ ...prev, [field]: true }));
+    setRegisterErrors((prev) => ({
+      ...prev,
+      [field]: validateRegisterField(field, registerData[field], registerData),
+      ...(field === "password"
+        ? {
+            confirmPassword: validateRegisterField("confirmPassword", registerData.confirmPassword, registerData),
+          }
+        : {}),
+    }));
+  };
+
+  const resetRegisterForm = () => {
+    setRegisterData(initialRegisterState);
+    setRegisterErrors(initialRegisterErrors);
+    setRegisterTouched(initialRegisterTouched);
+  };
+
+  const registerHasBlockingErrors = Object.values(registerErrors).some(Boolean);
+  const isLoginDisabled = isLoading || !loginData.username.trim() || !loginData.password.trim();
+  const { gradient, titleClass } = dialogToneStyles[dialogState.tone];
+  const DialogIcon = dialogState.tone === "success" ? Sparkles : AlertCircle;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,24 +303,15 @@ const LoginPage = ({ onLogin }: LoginPageProps) => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    if (isLoading) return;
 
-    console.log("Register data before sending:", {
-      username: registerData.username,
-      email: registerData.email,
-      password: registerData.password,
-      confirm_password: registerData.confirmPassword,
-    });
+    const isValid = validateRegisterForm();
 
-    if (!registerData.username || !registerData.email || !registerData.password || !registerData.confirmPassword) {
-      toast({
-        title: "Missing fields",
-        description: "Please fill in all fields, including Confirm Password",
-        variant: "destructive",
-      });
-      setIsLoading(false);
+    if (!isValid) {
       return;
     }
+
+    setIsLoading(true);
 
     try {
       const response = await fetch(`${apiBaseUrl}/banana/register/`, {
@@ -130,11 +326,11 @@ const LoginPage = ({ onLogin }: LoginPageProps) => {
       });
 
       const data = await response.json();
-      console.log("Server response:", data);
 
       if (response.ok) {
         localStorage.setItem("accessToken", data.access);
         localStorage.setItem("refreshToken", data.refresh);
+        resetRegisterForm();
         toast({
           title: "🎉 Account created!",
           description: `Welcome, ${data.username}!`,
@@ -142,604 +338,656 @@ const LoginPage = ({ onLogin }: LoginPageProps) => {
         });
         onLogin(data.username);
       } else {
-        toast({
-          title: "Registration failed",
-          description:
-            data.detail?.username?.[0] ||
-            data.detail?.email?.[0] ||
-            data.detail?.password?.[0] ||
-            data.detail?.confirm_password?.[0] ||
-            data.detail ||
-            "Please check your input",
-          variant: "destructive",
-        });
+        const apiError =
+          data.detail?.username?.[0] ||
+          data.detail?.email?.[0] ||
+          data.detail?.password?.[0] ||
+          data.detail?.confirm_password?.[0] ||
+          data.detail ||
+          "Please check your input";
+
+        showDialog("error", "Registration failed", `• ${apiError}`);
       }
     } catch (error) {
       console.error("Registration error:", error);
-      toast({
-        title: "Registration Error",
-        description: "Unable to connect to the server. Please check if the backend server is running and try again.",
-        variant: "destructive",
-      });
+      showDialog(
+        "error",
+        "Registration error",
+        "• Unable to connect to the server. Please check if the backend server is running and try again.",
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-2 sm:p-4 bg-gradient-to-br from-yellow-100 via-yellow-300 to-yellow-500 relative overflow-hidden">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#fff5dc] via-[#ffe3bf] to-[#ffcaa0]">
       <div className="absolute inset-0 overflow-hidden">
         <motion.div
-          className="absolute top-20 left-10 w-20 h-20 bg-gradient-to-r from-yellow-400/30 to-orange-400/30 rounded-full blur-sm"
-          animate={{
-            y: [0, -30, 0],
-            rotate: [0, 180, 360],
-            scale: [1, 1.3, 1],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            repeatType: "reverse",
-            ease: "easeInOut",
-          }}
+          className="absolute -top-10 left-1/3 h-40 w-40 rounded-full bg-gradient-to-br from-yellow-300/40 via-orange-300/30 to-pink-300/30 blur-2xl"
+          animate={{ y: [0, -25, 0], rotate: [0, 45, 0], scale: [1, 1.08, 1] }}
+          transition={{ duration: 10, repeat: Infinity, repeatType: "reverse" }}
         />
         <motion.div
-          className="absolute top-40 right-20 w-16 h-16 bg-gradient-to-r from-orange-400/30 to-red-400/30 rounded-full blur-sm"
-          animate={{
-            y: [0, 20, 0],
-            rotate: [360, 180, 0],
-            scale: [1.2, 0.8, 1.2],
-          }}
-          transition={{
-            duration: 10,
-            repeat: Infinity,
-            repeatType: "reverse",
-            ease: "easeInOut",
-          }}
+          className="absolute bottom-10 right-10 h-56 w-56 rounded-full bg-gradient-to-br from-yellow-400/30 via-orange-400/30 to-red-300/30 blur-3xl"
+          animate={{ y: [0, 20, 0], rotate: [0, -60, 0], scale: [1, 1.05, 1] }}
+          transition={{ duration: 12, repeat: Infinity, repeatType: "reverse" }}
         />
         <motion.div
-          className="absolute bottom-32 left-20 w-12 h-12 bg-gradient-to-r from-red-400/30 to-pink-400/30 rounded-full blur-sm"
-          animate={{
-            y: [0, -15, 0],
-            x: [0, 15, 0],
-            rotate: [0, 360],
-          }}
-          transition={{
-            duration: 6,
-            repeat: Infinity,
-            repeatType: "reverse",
-            ease: "easeInOut",
-          }}
+          className="absolute bottom-1/3 left-10 h-32 w-32 rounded-full bg-gradient-to-br from-white/30 via-yellow-200/20 to-orange-200/10 blur-2xl"
+          animate={{ x: [0, 30, 0], y: [0, -15, 0], rotate: [0, 180, 0] }}
+          transition={{ duration: 14, repeat: Infinity, repeatType: "mirror" }}
         />
-        <motion.div
-          className="absolute bottom-20 right-10 w-24 h-24 bg-gradient-to-r from-yellow-300/30 to-yellow-500/30 rounded-full blur-sm"
-          animate={{
-            scale: [1, 1.4, 1],
-            rotate: [0, -180, -360],
-          }}
-          transition={{
-            duration: 9,
-            repeat: Infinity,
-            repeatType: "reverse",
-            ease: "easeInOut",
-          }}
-        />
-        {[...Array(8)].map((_, i) => (
+        {Array.from({ length: 8 }).map((_, i) => (
           <motion.div
             key={`star-${i}`}
-            className="absolute text-yellow-300/40"
+            className="absolute text-yellow-400/40"
             style={{
-              left: `${10 + i * 12}%`,
-              top: `${5 + (i % 3) * 25}%`,
+              left: `${10 + i * 10}%`,
+              top: `${15 + (i % 3) * 20}%`,
             }}
             animate={{
               rotate: [0, 180, 360],
-              scale: [0.5, 1, 0.5],
+              scale: [0.4, 1, 0.4],
               opacity: [0.3, 0.8, 0.3],
             }}
             transition={{
-              duration: 4 + i * 0.3,
+              duration: 5 + i * 0.4,
               repeat: Infinity,
               delay: i * 0.2,
               ease: "easeInOut",
             }}
           >
-            <Star className="w-4 h-4" />
+            <Star className="h-4 w-4" />
           </motion.div>
         ))}
-        {[...Array(12)].map((_, i) => (
+        {Array.from({ length: 10 }).map((_, i) => (
           <motion.div
             key={`sparkle-${i}`}
-            className="absolute text-yellow-400/50"
+            className="absolute text-yellow-500/40"
             style={{
-              left: `${15 + i * 8}%`,
-              top: `${15 + (i % 2) * 15}%`,
+              left: `${20 + (i % 5) * 14}%`,
+              top: `${10 + (i % 2) * 25}%`,
             }}
             animate={{
-              rotate: [0, 180, 360],
-              scale: [0.3, 1, 0.3],
-              opacity: [0.2, 0.9, 0.2],
+              rotate: [0, 120, 240, 360],
+              scale: [0.3, 0.9, 0.3],
+              opacity: [0.3, 0.9, 0.3],
             }}
             transition={{
-              duration: 2 + i * 0.4,
+              duration: 3.5 + i * 0.3,
               repeat: Infinity,
               delay: i * 0.15,
               ease: "easeInOut",
             }}
           >
-            <Sparkles className="w-3 h-3" />
+            <Sparkles className="h-3 w-3" />
           </motion.div>
         ))}
-        <motion.div
-          className="absolute top-1/4 left-1/4 w-32 h-32 border-2 border-yellow-300/20 rounded-full"
-          animate={{
-            rotate: [0, 360],
-            scale: [0.8, 1.2, 0.8],
-          }}
-          transition={{
-            duration: 15,
-            repeat: Infinity,
-            ease: "linear",
-          }}
-        />
-        <motion.div
-          className="absolute bottom-1/4 right-1/4 w-24 h-24 border border-orange-300/20 rounded-full"
-          animate={{
-            rotate: [360, 0],
-            scale: [1.2, 0.8, 1.2],
-          }}
-          transition={{
-            duration: 12,
-            repeat: Infinity,
-            ease: "linear",
-          }}
-        />
       </div>
       <Particles
         id="tsparticles"
         url="https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js"
         options={{
           particles: {
-            number: { value: 50 },
+            number: { value: 40 },
             shape: { type: "circle" },
-            size: { value: { min: 10, max: 20 } },
-            move: { enable: true, speed: 2 },
-            opacity: { value: 0.6 },
+            size: { value: { min: 6, max: 12 } },
+            move: { enable: true, speed: 1.6 },
+            opacity: { value: 0.4 },
           },
         }}
         className="absolute inset-0"
       />
-      <motion.div
-        initial={{ opacity: 0, y: 50 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
-        className="relative z-10"
-      >
-        <Card className="w-full max-w-md p-4 sm:p-8 shadow-2xl bg-white/90 backdrop-blur-sm rounded-2xl border border-yellow-300 mx-2">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.25)_0%,rgba(255,255,255,0)_60%)]" />
+      {Array.from({ length: 6 }).map((_, index) => (
+        <motion.div
+          key={`banana-trail-${index}`}
+          className="pointer-events-none absolute text-4xl drop-shadow-lg"
+          style={{
+            left: `${5 + index * 16}%`,
+            top: `${20 + ((index + 1) % 4) * 15}%`,
+          }}
+          animate={{
+            y: [0, -12, 0],
+            rotate: index % 2 === 0 ? [0, 10, -10, 0] : [0, -8, 8, 0],
+            scale: [1, 1.1, 1],
+          }}
+          transition={{ duration: 4 + index * 0.4, repeat: Infinity, ease: "easeInOut" }}
+        >
+          🍌
+        </motion.div>
+      ))}
+      <div className="relative z-10 w-full px-4 py-16 sm:px-6 lg:px-12">
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16"
+        >
           <motion.div
-            className="text-center mb-8"
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 0.5 }}
+            initial={{ opacity: 0, x: -40 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2, duration: 0.8, ease: "easeOut" }}
+            className="order-2 flex flex-col gap-10 lg:order-1"
           >
+            <div className="relative overflow-hidden rounded-[32px] border border-white/30 bg-white/10 p-[1px] shadow-[0_45px_100px_-60px_rgba(234,179,8,0.85)] backdrop-blur-2xl">
+              <div className="relative h-full w-full rounded-[30px] bg-gradient-to-br from-yellow-500/25 via-orange-400/20 to-pink-400/25 px-8 py-12 text-white">
+                <motion.div
+                  className="absolute -top-40 -right-24 h-72 w-72 rounded-full bg-gradient-to-br from-yellow-400/50 via-orange-400/40 to-pink-400/30 blur-3xl"
+                  animate={{ rotate: [0, 45, 0], scale: [1, 1.08, 1] }}
+                  transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <motion.div
+                  className="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-gradient-to-br from-white/20 via-yellow-200/30 to-orange-200/20 blur-3xl"
+                  animate={{ rotate: [0, -60, 0], scale: [1, 1.1, 1] }}
+                  transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <Badge className="mb-6 w-fit rounded-full border border-white/30 bg-white/20 px-4 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-white/90 shadow-sm backdrop-blur-sm">
+                  Banana Blitz
+                </Badge>
+                <h2 className="text-4xl font-extrabold leading-tight drop-shadow-sm sm:text-5xl">Unlock your banana superpowers</h2>
+                <p className="mt-4 max-w-md text-base text-white/80">
+                  Build your reflexes, sync your progress, and climb the leaderboard in a whimsical arcade sprint built for the University of Bahrain.
+                </p>
+                <div className="mt-10 grid gap-6">
+                  {featureHighlights.map(({ icon: Icon, title, description, gradient: itemGradient }) => (
+                    <motion.div
+                      key={title}
+                      whileHover={{ translateY: -4, scale: 1.01 }}
+                      className="flex items-start gap-4 rounded-2xl border border-white/25 bg-white/10 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] backdrop-blur-lg"
+                    >
+                      <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${itemGradient} text-white shadow-lg shadow-black/10`}>
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="text-lg font-semibold tracking-tight drop-shadow-sm">{title}</h3>
+                        <p className="text-sm text-white/80">{description}</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            </div>
             <motion.div
-              className="text-8xl mb-4"
-              animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }}
-              transition={{ repeat: Infinity, duration: 2 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.45, duration: 0.6, ease: "easeOut" }}
+              className="relative grid gap-4 rounded-3xl border border-white/50 bg-white/50 p-6 shadow-[0_25px_60px_-35px_rgba(59,130,246,0.45)] backdrop-blur-xl"
             >
-              🍌
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.4em] text-slate-500">
+                  <Gamepad2 className="h-4 w-4 text-indigo-500" />
+                  Live Lobby
+                </span>
+                <motion.span
+                  animate={{ opacity: [0.4, 1, 0.4] }}
+                  transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                  className="flex items-center gap-1 text-xs font-semibold text-emerald-500"
+                >
+                  <Sparkles className="h-3 w-3" /> Active players: 128
+                </motion.span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {scoreboardTeasers.map(({ label, value, accent }) => (
+                  <motion.div
+                    key={label}
+                    whileHover={{ y: -4, scale: 1.01 }}
+                    className="rounded-2xl border border-white/60 bg-white/60 p-4 text-center shadow-inner shadow-white/40"
+                  >
+                    <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-slate-500">{label}</p>
+                    <p className={`mt-2 text-lg font-black ${accent}`}>{value}</p>
+                  </motion.div>
+                ))}
+              </div>
+              <motion.span
+                animate={{ x: [0, 6, 0] }}
+                transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                className="flex items-center justify-center gap-2 text-xs font-semibold text-slate-600"
+              >
+                <Trophy className="h-3 w-3 text-amber-500" />
+                New tournament starts in 02:17:49
+              </motion.span>
             </motion.div>
-            <h1 className="text-4xl font-extrabold bg-gradient-to-r from-yellow-600 via-orange-500 to-red-500 bg-clip-text text-transparent mb-2">
-              Banana Cha...
-            </h1>
           </motion.div>
-          <Tabs defaultValue="login" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2 bg-yellow-100/50 rounded-xl p-1">
-              <TabsTrigger value="login" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md">
-                <LogIn className="w-4 h-4 mr-2" />
-                Login
-              </TabsTrigger>
-              <TabsTrigger value="register" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md">
-                <UserPlus className="w-4 h-4 mr-2" />
-                Register
-              </TabsTrigger>
-            </TabsList>
-            <AnimatePresence mode="wait">
-              <TabsContent value="login" asChild>
-                <motion.form
-                  onSubmit={handleLogin}
-                  className="space-y-6"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <label htmlFor="login-username" className="block text-sm font-medium mb-2 flex items-center gap-2 text-gray-700">
-                      <motion.div
-                        animate={{
-                          rotate: loginData.username ? [0, -10, 10, 0] : 0,
-                          color: loginData.username ? "#f59e0b" : "#d97706",
-                        }}
-                        transition={{ duration: 0.5 }}
-                      >
-                        <User className="w-4 h-4" />
-                      </motion.div>
-                      Username
-                    </label>
-                    <motion.div
-                      className="relative"
-                      animate={{
-                        boxShadow: focusedField === "login-username" ? "0 0 20px rgba(245, 158, 11, 0.5)" : "0 0 0px rgba(245, 158, 11, 0)",
-                      }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <Input
-                        id="login-username"
-                        type="text"
-                        placeholder="Your username"
-                        value={loginData.username}
-                        onChange={(e) => {
-                          setLoginData({ ...loginData, username: e.target.value });
-                          console.log("Username input:", e.target.value);
-                        }}
-                        onFocus={() => setFocusedField("login-username")}
-                        onBlur={() => setFocusedField(null)}
-                        className="border-yellow-300 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-300 shadow-sm hover:shadow-md hover:border-yellow-400 pl-10"
-                      />
-                      <motion.div
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 flex items-center justify-center"
-                        animate={{
-                          x: loginData.username ? [0, 2, 0] : 0,
-                          color: loginData.username ? "#f59e0b" : "#d1d5db",
-                        }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        <User className="w-4 h-4" />
-                      </motion.div>
-                    </motion.div>
-                  </motion.div>
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <label htmlFor="login-password" className="block text-sm font-medium mb-2 flex items-center gap-2 text-gray-700">
-                      <motion.div
-                        animate={{
-                          rotate: loginData.password ? [0, -10, 10, 0] : 0,
-                          color: loginData.password ? "#f59e0b" : "#d97706",
-                        }}
-                        transition={{ duration: 0.5 }}
-                      >
-                        <Lock className="w-4 h-4" />
-                      </motion.div>
-                      Password
-                    </label>
-                    <motion.div
-                      className="relative"
-                      animate={{
-                        boxShadow: focusedField === "login-password" ? "0 0 20px rgba(245, 158, 11, 0.5)" : "0 0 0px rgba(245, 158, 11, 0)",
-                      }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <Input
-                        id="login-password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={loginData.password}
-                        onChange={(e) => {
-                          setLoginData({ ...loginData, password: e.target.value });
-                          console.log("Password input:", e.target.value);
-                        }}
-                        onFocus={() => setFocusedField("login-password")}
-                        onBlur={() => setFocusedField(null)}
-                        className="border-yellow-300 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-300 shadow-sm hover:shadow-md hover:border-yellow-400 pl-10"
-                      />
-                      <motion.div
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 flex items-center justify-center"
-                        animate={{
-                          x: loginData.password ? [0, 2, 0] : 0,
-                          color: loginData.password ? "#f59e0b" : "#d1d5db",
-                        }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        <Lock className="w-4 h-4" />
-                      </motion.div>
-                    </motion.div>
-                  </motion.div>
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    animate={{
-                      background: isLoading
-                        ? ["linear-gradient(to right, #fbbf24, #f59e0b)", "linear-gradient(to right, #f59e0b, #fbbf24)"]
-                        : "linear-gradient(to right, #fbbf24, #f59e0b)",
-                    }}
-                    transition={{ duration: 2, repeat: isLoading ? Infinity : 0 }}
-                  >
-                    <Button
-                      type="submit"
-                      className="w-full text-lg py-6 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-yellow-500/50"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ repeat: Infinity, duration: 1 }}
-                          className="flex items-center gap-2"
-                        >
-                          <Zap className="w-5 h-5" />
-                          Logging in...
-                        </motion.div>
-                      ) : (
-                        <motion.div
-                          whileHover={{ scale: 1.1 }}
-                          className="flex items-center gap-2"
-                        >
-                          Login & Play 🚀
-                        </motion.div>
-                      )}
-                    </Button>
-                  </motion.div>
-                </motion.form>
-              </TabsContent>
-              <TabsContent value="register" asChild>
-                <motion.form
-                  onSubmit={handleRegister}
-                  className="space-y-6"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <label htmlFor="register-username" className="block text-sm font-medium mb-2 flex items-center gap-2 text-gray-700">
-                      <motion.div
-                        animate={{
-                          rotate: registerData.username ? [0, -10, 10, 0] : 0,
-                          color: registerData.username ? "#f59e0b" : "#d97706",
-                        }}
-                        transition={{ duration: 0.5 }}
-                      >
-                        <User className="w-4 h-4" />
-                      </motion.div>
-                      Username
-                    </label>
-                    <motion.div
-                      className="relative"
-                      animate={{
-                        boxShadow: focusedField === "register-username" ? "0 0 20px rgba(245, 158, 11, 0.5)" : "0 0 0px rgba(245, 158, 11, 0)",
-                      }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <Input
-                        id="register-username"
-                        type="text"
-                        placeholder="Choose a username"
-                        value={registerData.username}
-                        onChange={(e) => {
-                          setRegisterData({ ...registerData, username: e.target.value });
-                          console.log("Username input:", e.target.value);
-                        }}
-                        onFocus={() => setFocusedField("register-username")}
-                        onBlur={() => setFocusedField(null)}
-                        className="border-yellow-300 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-300 shadow-sm hover:shadow-md hover:border-yellow-400 pl-10"
-                      />
-                      <motion.div
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 flex items-center justify-center"
-                        animate={{
-                          x: registerData.username ? [0, 2, 0] : 0,
-                          color: registerData.username ? "#f59e0b" : "#d1d5db",
-                        }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        <User className="w-4 h-4" />
-                      </motion.div>
-                    </motion.div>
-                  </motion.div>
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <label htmlFor="register-email" className="block text-sm font-medium mb-2 flex items-center gap-2 text-gray-700">
-                      <motion.div
-                        animate={{
-                          rotate: registerData.email ? [0, -10, 10, 0] : 0,
-                          color: registerData.email ? "#f59e0b" : "#d97706",
-                        }}
-                        transition={{ duration: 0.5 }}
-                      >
-                        <Mail className="w-4 h-4" />
-                      </motion.div>
-                      Email
-                    </label>
-                    <motion.div
-                      className="relative"
-                      animate={{
-                        boxShadow: focusedField === "register-email" ? "0 0 20px rgba(245, 158, 11, 0.5)" : "0 0 0px rgba(245, 158, 11, 0)",
-                      }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <Input
-                        id="register-email"
-                        type="email"
-                        placeholder="your@email.com"
-                        value={registerData.email}
-                        onChange={(e) => {
-                          setRegisterData({ ...registerData, email: e.target.value });
-                          console.log("Email input:", e.target.value);
-                        }}
-                        onFocus={() => setFocusedField("register-email")}
-                        onBlur={() => setFocusedField(null)}
-                        className="border-yellow-300 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-300 shadow-sm hover:shadow-md hover:border-yellow-400 pl-10"
-                      />
-                      <motion.div
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 flex items-center justify-center"
-                        animate={{
-                          x: registerData.email ? [0, 2, 0] : 0,
-                          color: registerData.email ? "#f59e0b" : "#d1d5db",
-                        }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        <Mail className="w-4 h-4" />
-                      </motion.div>
-                    </motion.div>
-                  </motion.div>
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <label htmlFor="register-password" className="block text-sm font-medium mb-2 flex items-center gap-2 text-gray-700">
-                      <motion.div
-                        animate={{
-                          rotate: registerData.password ? [0, -10, 10, 0] : 0,
-                          color: registerData.password ? "#f59e0b" : "#d97706",
-                        }}
-                        transition={{ duration: 0.5 }}
-                      >
-                        <Lock className="w-4 h-4" />
-                      </motion.div>
-                      Password
-                    </label>
-                    <motion.div
-                      className="relative"
-                      animate={{
-                        boxShadow: focusedField === "register-password" ? "0 0 20px rgba(245, 158, 11, 0.5)" : "0 0 0px rgba(245, 158, 11, 0)",
-                      }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <Input
-                        id="register-password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={registerData.password}
-                        onChange={(e) => {
-                          setRegisterData({ ...registerData, password: e.target.value });
-                          console.log("Password input:", e.target.value);
-                        }}
-                        onFocus={() => setFocusedField("register-password")}
-                        onBlur={() => setFocusedField(null)}
-                        className="border-yellow-300 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-300 shadow-sm hover:shadow-md hover:border-yellow-400 pl-10"
-                      />
-                      <motion.div
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 flex items-center justify-center"
-                        animate={{
-                          x: registerData.password ? [0, 2, 0] : 0,
-                          color: registerData.password ? "#f59e0b" : "#d1d5db",
-                        }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        <Lock className="w-4 h-4" />
-                      </motion.div>
-                    </motion.div>
-                  </motion.div>
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <label htmlFor="confirm-password" className="block text-sm font-medium mb-2 flex items-center gap-2 text-gray-700">
-                      <motion.div
-                        animate={{
-                          rotate: registerData.confirmPassword ? [0, -10, 10, 0] : 0,
-                          color: registerData.confirmPassword ? "#f59e0b" : "#d97706",
-                        }}
-                        transition={{ duration: 0.5 }}
-                      >
-                        <Lock className="w-4 h-4" />
-                      </motion.div>
-                      Confirm Password
-                    </label>
-                    <motion.div
-                      className="relative"
-                      animate={{
-                        boxShadow: focusedField === "confirm-password" ? "0 0 20px rgba(245, 158, 11, 0.5)" : "0 0 0px rgba(245, 158, 11, 0)",
-                      }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <Input
-                        id="confirm-password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={registerData.confirmPassword}
-                        onChange={(e) => {
-                          setRegisterData({ ...registerData, confirmPassword: e.target.value });
-                          console.log("Confirm Password input:", e.target.value);
-                        }}
-                        onFocus={() => setFocusedField("confirm-password")}
-                        onBlur={() => setFocusedField(null)}
-                        className="border-yellow-300 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-300 shadow-sm hover:shadow-md hover:border-yellow-400 pl-10"
-                      />
-                      <motion.div
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 flex items-center justify-center"
-                        animate={{
-                          x: registerData.confirmPassword ? [0, 2, 0] : 0,
-                          color: registerData.confirmPassword ? "#f59e0b" : "#d1d5db",
-                        }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        <Lock className="w-4 h-4" />
-                      </motion.div>
-                    </motion.div>
-                  </motion.div>
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    animate={{
-                      background: isLoading
-                        ? ["linear-gradient(to right, #f97316, #ef4444)", "linear-gradient(to right, #ef4444, #f97316)"]
-                        : "linear-gradient(to right, #f97316, #ef4444)",
-                    }}
-                    transition={{ duration: 2, repeat: isLoading ? Infinity : 0 }}
-                  >
-                    <Button
-                      type="submit"
-                      className="w-full text-lg py-6 bg-gradient-to-r from-orange-400 to-red-500 hover:from-orange-500 hover:to-red-600 text-white hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-yellow-500/50"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ repeat: Infinity, duration: 1 }}
-                          className="flex items-center gap-2"
-                        >
-                          <Zap className="w-5 h-5" />
-                          Creating...
-                        </motion.div>
-                      ) : (
-                        <motion.div
-                          whileHover={{ scale: 1.1 }}
-                          className="flex items-center gap-2"
-                        >
-                          Create Account & Play 🚀
-                        </motion.div>
-                      )}
-                    </Button>
-                  </motion.div>
-                </motion.form>
-              </TabsContent>
-            </AnimatePresence>
-          </Tabs>
           <motion.div
-            className="mt-6 text-center text-sm text-gray-600 space-y-1"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5, duration: 0.5 }}
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.25, duration: 0.8, ease: "easeOut" }}
+            className="order-1 lg:order-2"
           >
-            <p>✨ Event-driven gameplay with real-time scoring</p>
-            <p>🔐 Secure authentication with JWT</p>
-            <p>🔗 Powered by Banana API</p>
-            <p className="text-xs text-gray-500 mt-2">
-              💡 Make sure the backend server is running on {apiBaseUrl}
-            </p>
+            <Card className="relative mx-auto w-full max-w-lg overflow-hidden border border-white/50 bg-white/85 shadow-[0_45px_120px_-60px_rgba(249,115,22,0.75)] backdrop-blur-xl">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/90 via-white/70 to-white/90" />
+              <motion.div
+                className="absolute -top-32 -right-20 h-64 w-64 rounded-full bg-gradient-to-br from-yellow-400/40 via-orange-400/20 to-red-400/30 blur-3xl"
+                animate={{ rotate: [0, 360], scale: [1, 1.15, 1] }}
+                transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
+              />
+              <div className="relative p-8 sm:p-10">
+                <div className="mb-8 flex flex-col items-center text-center">
+                  <Badge className="mb-4 rounded-full border border-yellow-300/80 bg-yellow-100/90 px-5 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.4em] text-yellow-700 shadow-sm">
+                    Ready Player
+                  </Badge>
+                  <motion.div
+                    className="text-7xl sm:text-8xl"
+                    animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.08, 1] }}
+                    transition={{ repeat: Infinity, duration: 2.4 }}
+                  >
+                    🍌
+                  </motion.div>
+                  <h1 className="mt-4 text-3xl font-black text-gray-900 sm:text-4xl">Banana Brain Blitz</h1>
+                  <p className="mt-2 text-sm text-gray-600">Sign in or squad up to join today's high-score dash.</p>
+                </div>
+                <Tabs defaultValue="login" className="space-y-8">
+                  <TabsList className="grid w-full grid-cols-2 rounded-2xl bg-gradient-to-r from-yellow-100 via-white to-yellow-100 p-1 shadow-inner shadow-yellow-500/20">
+                    <TabsTrigger
+                      value="login"
+                      className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-gray-500 transition-all duration-200 data-[state=active]:translate-y-[-2px] data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-lg data-[state=active]:shadow-yellow-400/30"
+                    >
+                      <LogIn className="h-4 w-4" />
+                      Login
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="register"
+                      className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-gray-500 transition-all duration-200 data-[state=active]:translate-y-[-2px] data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-lg data-[state=active]:shadow-orange-400/30"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      Register
+                    </TabsTrigger>
+                  </TabsList>
+                  <AnimatePresence mode="wait">
+                    <TabsContent value="login" asChild>
+                      <motion.form
+                        onSubmit={handleLogin}
+                        className="space-y-6"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                          <label htmlFor="login-username" className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                            <User className="h-4 w-4 text-yellow-500" />
+                            Username
+                          </label>
+                          <motion.div
+                            className="relative"
+                            animate={{
+                              boxShadow: focusedField === "login-username" ? "0 0 20px rgba(251,191,36,0.35)" : "0 0 0 rgba(0,0,0,0)",
+                            }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <Input
+                              id="login-username"
+                              type="text"
+                              placeholder="Enter username"
+                              value={loginData.username}
+                              onChange={(e) => setLoginData((prev) => ({ ...prev, username: e.target.value }))}
+                              onFocus={() => setFocusedField("login-username")}
+                              onBlur={() => setFocusedField(null)}
+                              className="h-12 rounded-2xl border-2 border-yellow-300/70 bg-white/85 pl-12 pr-4 text-base font-medium text-gray-700 shadow-inner transition-all duration-300 hover:border-yellow-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-200/60"
+                            />
+                            <motion.div
+                              className="pointer-events-none absolute left-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center text-yellow-400"
+                              animate={{ x: loginData.username ? [0, 2, 0] : 0 }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              <User className="h-4 w-4" />
+                            </motion.div>
+                          </motion.div>
+                        </motion.div>
+                        <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                          <label htmlFor="login-password" className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                            <KeyRound className="h-4 w-4 text-yellow-500" />
+                            Password
+                          </label>
+                          <motion.div
+                            className="relative"
+                            animate={{
+                              boxShadow: focusedField === "login-password" ? "0 0 20px rgba(251,191,36,0.35)" : "0 0 0 rgba(0,0,0,0)",
+                            }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <Input
+                              id="login-password"
+                              type="password"
+                              placeholder="••••••••"
+                              value={loginData.password}
+                              onChange={(e) => setLoginData((prev) => ({ ...prev, password: e.target.value }))}
+                              onFocus={() => setFocusedField("login-password")}
+                              onBlur={() => setFocusedField(null)}
+                              className="h-12 rounded-2xl border-2 border-yellow-300/70 bg-white/85 pl-12 pr-4 text-base font-medium text-gray-700 shadow-inner transition-all duration-300 hover:border-yellow-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-200/60"
+                            />
+                            <motion.div
+                              className="pointer-events-none absolute left-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center text-yellow-400"
+                              animate={{ x: loginData.password ? [0, 2, 0] : 0 }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              <KeyRound className="h-4 w-4" />
+                            </motion.div>
+                          </motion.div>
+                        </motion.div>
+                        <motion.div
+                          whileHover={{ scale: isLoginDisabled ? 1 : 1.02 }}
+                          whileTap={{ scale: isLoginDisabled ? 1 : 0.98 }}
+                          animate={{
+                            background: isLoading
+                              ? [
+                                  "linear-gradient(90deg, rgba(251,191,36,1) 0%, rgba(249,115,22,1) 50%, rgba(251,191,36,1) 100%)",
+                                  "linear-gradient(90deg, rgba(249,115,22,1) 0%, rgba(251,191,36,1) 50%, rgba(249,115,22,1) 100%)",
+                                ]
+                              : "linear-gradient(90deg, rgba(251,191,36,1), rgba(249,115,22,1))",
+                          }}
+                          transition={{ duration: 2, repeat: isLoading ? Infinity : 0 }}
+                        >
+                          <Button
+                            type="submit"
+                            disabled={isLoginDisabled}
+                            className="h-12 w-full rounded-2xl bg-gradient-to-r from-yellow-400 via-orange-400 to-orange-500 text-base font-semibold text-white shadow-lg shadow-orange-400/40 transition-all duration-300 hover:shadow-xl hover:shadow-orange-400/60 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isLoading ? (
+                              <motion.span
+                                className="flex items-center justify-center gap-2"
+                                animate={{ rotate: 360 }}
+                                transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }}
+                              >
+                                <Zap className="h-5 w-5" />
+                                Loading…
+                              </motion.span>
+                            ) : (
+                              <span className="flex items-center justify-center gap-2">Login &amp; Play</span>
+                            )}
+                          </Button>
+                        </motion.div>
+                      </motion.form>
+                    </TabsContent>
+                    <TabsContent value="register" asChild>
+                      <motion.form
+                        onSubmit={handleRegister}
+                        className="space-y-6"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                          <label htmlFor="register-username" className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                            <User className="h-4 w-4 text-yellow-500" />
+                            Username
+                          </label>
+                          <motion.div
+                            className="relative"
+                            animate={{
+                              boxShadow: focusedField === "register-username" ? "0 0 20px rgba(249,115,22,0.35)" : "0 0 0 rgba(0,0,0,0)",
+                            }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <Input
+                              id="register-username"
+                              type="text"
+                              placeholder="Choose a username"
+                              value={registerData.username}
+                              onChange={(e) => handleRegisterInputChange("username", e.target.value)}
+                              onFocus={() => setFocusedField("register-username")}
+                              onBlur={() => handleRegisterBlur("username")}
+                              aria-invalid={registerTouched.username && Boolean(registerErrors.username)}
+                              className={`h-12 rounded-2xl border-2 bg-white/85 pl-12 pr-4 text-base font-medium text-gray-700 shadow-inner transition-all duration-300 ${
+                                registerTouched.username && registerErrors.username
+                                  ? "border-rose-300 focus:border-rose-500 focus:ring-rose-200/60"
+                                  : "border-yellow-300/80 hover:border-orange-300 focus:border-orange-400 focus:ring-orange-200/70"
+                              }`}
+                            />
+                            <motion.div
+                              className="pointer-events-none absolute left-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center"
+                              animate={{
+                                x: registerData.username ? [0, 2, 0] : 0,
+                                color: registerTouched.username && registerErrors.username ? "#f43f5e" : "#f59e0b",
+                              }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              <User className="h-4 w-4" />
+                            </motion.div>
+                          </motion.div>
+                          {registerTouched.username && registerErrors.username && (
+                            <motion.p
+                              initial={{ opacity: 0, y: -4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="mt-2 flex items-center gap-2 text-xs font-medium text-rose-500"
+                            >
+                              <AlertCircle className="h-3.5 w-3.5" />
+                              {registerErrors.username}
+                            </motion.p>
+                          )}
+                        </motion.div>
+                        <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                          <label htmlFor="register-email" className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                            <Mail className="h-4 w-4 text-yellow-500" />
+                            Email
+                          </label>
+                          <motion.div
+                            className="relative"
+                            animate={{
+                              boxShadow: focusedField === "register-email" ? "0 0 20px rgba(249,115,22,0.35)" : "0 0 0 rgba(0,0,0,0)",
+                            }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <Input
+                              id="register-email"
+                              type="email"
+                              placeholder="you@example.com"
+                              value={registerData.email}
+                              onChange={(e) => handleRegisterInputChange("email", e.target.value)}
+                              onFocus={() => setFocusedField("register-email")}
+                              onBlur={() => handleRegisterBlur("email")}
+                              aria-invalid={registerTouched.email && Boolean(registerErrors.email)}
+                              className={`h-12 rounded-2xl border-2 bg-white/85 pl-12 pr-4 text-base font-medium text-gray-700 shadow-inner transition-all duration-300 ${
+                                registerTouched.email && registerErrors.email
+                                  ? "border-rose-300 focus:border-rose-500 focus:ring-rose-200/60"
+                                  : "border-yellow-300/80 hover:border-orange-300 focus:border-orange-400 focus:ring-orange-200/70"
+                              }`}
+                            />
+                            <motion.div
+                              className="pointer-events-none absolute left-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center"
+                              animate={{
+                                x: registerData.email ? [0, 2, 0] : 0,
+                                color: registerTouched.email && registerErrors.email ? "#f43f5e" : "#f59e0b",
+                              }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              <Mail className="h-4 w-4" />
+                            </motion.div>
+                          </motion.div>
+                          {registerTouched.email && registerErrors.email && (
+                            <motion.p
+                              initial={{ opacity: 0, y: -4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="mt-2 flex items-center gap-2 text-xs font-medium text-rose-500"
+                            >
+                              <AlertCircle className="h-3.5 w-3.5" />
+                              {registerErrors.email}
+                            </motion.p>
+                          )}
+                        </motion.div>
+                        <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                          <label htmlFor="register-password" className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                            <KeyRound className="h-4 w-4 text-yellow-500" />
+                            Password
+                          </label>
+                          <motion.div
+                            className="relative"
+                            animate={{
+                              boxShadow: focusedField === "register-password" ? "0 0 20px rgba(249,115,22,0.35)" : "0 0 0 rgba(0,0,0,0)",
+                            }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <Input
+                              id="register-password"
+                              type="password"
+                              placeholder="Create a strong password"
+                              value={registerData.password}
+                              onChange={(e) => handleRegisterInputChange("password", e.target.value)}
+                              onFocus={() => setFocusedField("register-password")}
+                              onBlur={() => handleRegisterBlur("password")}
+                              aria-invalid={registerTouched.password && Boolean(registerErrors.password)}
+                              className={`h-12 rounded-2xl border-2 bg-white/85 pl-12 pr-4 text-base font-medium text-gray-700 shadow-inner transition-all duration-300 ${
+                                registerTouched.password && registerErrors.password
+                                  ? "border-rose-300 focus:border-rose-500 focus:ring-rose-200/60"
+                                  : "border-yellow-300/80 hover:border-orange-300 focus:border-orange-400 focus:ring-orange-200/70"
+                              }`}
+                            />
+                            <motion.div
+                              className="pointer-events-none absolute left-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center"
+                              animate={{
+                                x: registerData.password ? [0, 2, 0] : 0,
+                                color: registerTouched.password && registerErrors.password ? "#f43f5e" : "#f59e0b",
+                              }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              <KeyRound className="h-4 w-4" />
+                            </motion.div>
+                          </motion.div>
+                          {registerTouched.password && registerErrors.password && (
+                            <motion.p
+                              initial={{ opacity: 0, y: -4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="mt-2 flex items-center gap-2 text-xs font-medium text-rose-500"
+                            >
+                              <AlertCircle className="h-3.5 w-3.5" />
+                              {registerErrors.password}
+                            </motion.p>
+                          )}
+                        </motion.div>
+                        <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                          <label htmlFor="register-confirm-password" className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                            <ShieldCheck className="h-4 w-4 text-yellow-500" />
+                            Confirm Password
+                          </label>
+                          <motion.div
+                            className="relative"
+                            animate={{
+                              boxShadow: focusedField === "register-confirm-password" ? "0 0 20px rgba(249,115,22,0.35)" : "0 0 0 rgba(0,0,0,0)",
+                            }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <Input
+                              id="register-confirm-password"
+                              type="password"
+                              placeholder="Repeat your password"
+                              value={registerData.confirmPassword}
+                              onChange={(e) => handleRegisterInputChange("confirmPassword", e.target.value)}
+                              onFocus={() => setFocusedField("register-confirm-password")}
+                              onBlur={() => handleRegisterBlur("confirmPassword")}
+                              aria-invalid={registerTouched.confirmPassword && Boolean(registerErrors.confirmPassword)}
+                              className={`h-12 rounded-2xl border-2 bg-white/85 pl-12 pr-4 text-base font-medium text-gray-700 shadow-inner transition-all duration-300 ${
+                                registerTouched.confirmPassword && registerErrors.confirmPassword
+                                  ? "border-rose-300 focus:border-rose-500 focus:ring-rose-200/60"
+                                  : "border-yellow-300/80 hover:border-orange-300 focus:border-orange-400 focus:ring-orange-200/70"
+                              }`}
+                            />
+                            <motion.div
+                              className="pointer-events-none absolute left-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center"
+                              animate={{
+                                x: registerData.confirmPassword ? [0, 2, 0] : 0,
+                                color: registerTouched.confirmPassword && registerErrors.confirmPassword ? "#f43f5e" : "#f59e0b",
+                              }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              <ShieldCheck className="h-4 w-4" />
+                            </motion.div>
+                          </motion.div>
+                          {registerTouched.confirmPassword && registerErrors.confirmPassword && (
+                            <motion.p
+                              initial={{ opacity: 0, y: -4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="mt-2 flex items-center gap-2 text-xs font-medium text-rose-500"
+                            >
+                              <AlertCircle className="h-3.5 w-3.5" />
+                              {registerErrors.confirmPassword}
+                            </motion.p>
+                          )}
+                        </motion.div>
+                        <motion.div
+                          whileHover={{ scale: isLoading || registerHasBlockingErrors ? 1 : 1.02 }}
+                          whileTap={{ scale: isLoading || registerHasBlockingErrors ? 1 : 0.98 }}
+                          animate={{
+                            background: isLoading
+                              ? [
+                                  "linear-gradient(90deg, rgba(249,115,22,1) 0%, rgba(236,72,153,1) 50%, rgba(249,115,22,1) 100%)",
+                                  "linear-gradient(90deg, rgba(236,72,153,1) 0%, rgba(249,115,22,1) 50%, rgba(236,72,153,1) 100%)",
+                                ]
+                              : "linear-gradient(90deg, rgba(249,115,22,1), rgba(236,72,153,1))",
+                          }}
+                          transition={{ duration: 2, repeat: isLoading ? Infinity : 0 }}
+                        >
+                          <Button
+                            type="submit"
+                            disabled={isLoading || registerHasBlockingErrors}
+                            className="h-12 w-full rounded-2xl bg-gradient-to-r from-orange-400 via-red-400 to-pink-500 text-base font-semibold text-white shadow-lg shadow-orange-400/40 transition-all duration-300 hover:shadow-xl hover:shadow-rose-400/60 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isLoading ? (
+                              <motion.span
+                                className="flex items-center justify-center gap-2"
+                                animate={{ rotate: 360 }}
+                                transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }}
+                              >
+                                <Zap className="h-5 w-5" />
+                                Creating…
+                              </motion.span>
+                            ) : (
+                              <span className="flex items-center justify-center gap-2">Create Account &amp; Play</span>
+                            )}
+                          </Button>
+                        </motion.div>
+                      </motion.form>
+                    </TabsContent>
+                  </AnimatePresence>
+                </Tabs>
+                <motion.div
+                  className="mt-6 space-y-2 text-center text-xs text-gray-600"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.6, duration: 0.5 }}
+                >
+                  <p className="flex items-center justify-center gap-2">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                    Secure authentication with JWT
+                  </p>
+                  <p className="flex items-center justify-center gap-2">
+                    <Gamepad2 className="h-3.5 w-3.5 text-indigo-500" />
+                    Event-driven gameplay with instant feedback
+                  </p>
+                  <p className="flex items-center justify-center gap-2">
+                    <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                    Powered by the Banana API leaderboard
+                  </p>
+                  <p className="text-[0.65rem] text-gray-500">Backend endpoint: {apiBaseUrl}</p>
+                </motion.div>
+              </div>
+            </Card>
           </motion.div>
-        </Card>
-      </motion.div>
+        </motion.div>
+      </div>
+      <AlertDialog open={dialogState.open} onOpenChange={(open) => setDialogState((prev) => ({ ...prev, open }))}>
+        <AlertDialogContent className="border-none bg-white/95 p-8 shadow-2xl backdrop-blur-xl">
+          <AlertDialogHeader className="space-y-4">
+            <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${gradient} text-white shadow-lg shadow-orange-200/40`}>
+              <DialogIcon className="h-7 w-7" />
+            </div>
+            <AlertDialogTitle className={`text-center text-2xl font-bold ${titleClass}`}>{dialogState.title}</AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-line text-center text-sm text-gray-600">
+              {dialogState.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={() => setDialogState((prev) => ({ ...prev, open: false }))}
+              className={`w-full justify-center rounded-xl bg-gradient-to-r ${gradient} px-6 py-2 font-semibold text-white shadow-lg shadow-orange-200/40 hover:shadow-xl`}
+            >
+              Got it
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
