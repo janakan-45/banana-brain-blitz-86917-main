@@ -45,7 +45,7 @@ const LandingPage = ({ onSelectAuth }: LandingPageProps) => {
     pointerY.set(0);
   };
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-gradient-to-br from-[#fff7d4] via-[#ffe29f] to-[#ffc14f]">
+    <div className="relative flex min-h-screen flex-col overflow-x-hidden bg-gradient-to-br from-[#fff7d4] via-[#ffe29f] to-[#ffc14f]">
       <div className="absolute inset-0">
         {layeredGradients.map((gradient, index) => (
           <motion.div

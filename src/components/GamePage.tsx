@@ -443,7 +443,7 @@ const GamePage = ({ username, onLogout, onGameComplete }: GamePageProps) => {
 
   // ... rest of the JSX remains the same
   return (
-    <div className="min-h-screen p-4 py-8 relative overflow-hidden">
+    <div className="min-h-screen p-4 py-8 relative overflow-x-hidden">
 
       {/* Animated Background Elements */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">

@@ -528,7 +528,7 @@ const LoginPage = ({ onLogin, initialTab = "login", onBack }: LoginPageProps) =>
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#fff5dc] via-[#ffe3bf] to-[#ffcaa0]">
+    <div className="relative flex min-h-screen items-center justify-center overflow-x-hidden bg-gradient-to-br from-[#fff5dc] via-[#ffe3bf] to-[#ffcaa0]">
       {onBack && (
         <motion.button
           type="button"
