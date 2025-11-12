@@ -6,6 +6,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { invokeLogoutEndpoint, clearStoredSession, type LogoutEndpoint } from "@/lib/auth";
 import { Trophy, Timer, Zap, LogOut, Sparkles, Star, Coins, Lightbulb, Snowflake, Gem, Award, ShoppingCart } from "lucide-react";
 
 interface GamePageProps {
@@ -55,7 +64,61 @@ const GamePage = ({ username, onLogout, onGameComplete }: GamePageProps) => {
   const [showShop, setShowShop] = useState(false);
   const [puzzleStartTime, setPuzzleStartTime] = useState<number>(0);
   const [isTimerFrozen, setIsTimerFrozen] = useState(false);
+  const [backgroundOrbs] = useState(() =>
+    Array.from({ length: 4 }, (_, id) => ({
+      id,
+      size: 260 + Math.random() * 180,
+      top: Math.random() * 60,
+      left: Math.random() * 60,
+      delay: Math.random() * 6,
+      duration: 18 + Math.random() * 10,
+    }))
+  );
+  const [twinkles] = useState(() =>
+    Array.from({ length: 18 }, (_, id) => ({
+      id,
+      top: Math.random() * 100,
+      left: Math.random() * 100,
+      delay: Math.random() * 4,
+      duration: 3 + Math.random() * 2,
+      scale: 0.6 + Math.random() * 0.8,
+    }))
+  );
   const { toast } = useToast();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogoutRequest = useCallback(
+    async (endpoint: LogoutEndpoint) => {
+      if (isLoggingOut) return;
+      setIsLoggingOut(true);
+
+      try {
+        const result = await invokeLogoutEndpoint(apiBaseUrl, endpoint);
+
+        if (result.ok) {
+          toast({
+            title: endpoint === "logout-all" ? "Signed out everywhere" : "Signed out",
+            description:
+              result.message ||
+              (endpoint === "logout-all"
+                ? "You have been logged out on all devices."
+                : "You have been logged out on this device."),
+          });
+        } else if (result.message) {
+          toast({
+            title: "Logout error",
+            description: result.message,
+            variant: "destructive",
+          });
+        }
+      } finally {
+        clearStoredSession();
+        setIsLoggingOut(false);
+        onLogout();
+      }
+    },
+    [apiBaseUrl, isLoggingOut, onLogout, toast],
+  );
 
   // Update player data on backend
   const updatePlayerData = useCallback(async (updates: Partial<Record<string, any>>) => {
@@ -383,7 +446,67 @@ const GamePage = ({ username, onLogout, onGameComplete }: GamePageProps) => {
     <div className="min-h-screen p-4 py-8 relative overflow-hidden">
 
       {/* Animated Background Elements */}
-      <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div
+          className="absolute inset-0 opacity-30 mix-blend-screen animate-hue-rotate"
+          style={{
+            background:
+              "radial-gradient(circle at 20% 20%, rgba(255, 231, 123, 0.25), transparent 55%), radial-gradient(circle at 80% 30%, rgba(164, 196, 255, 0.2), transparent 60%), radial-gradient(circle at 50% 80%, rgba(255, 175, 204, 0.18), transparent 65%)",
+          }}
+        ></div>
+
+        {backgroundOrbs.map((orb) => (
+          <div
+            key={orb.id}
+            className="absolute rounded-full blur-3xl opacity-40 mix-blend-screen animate-blob bg-gradient-to-br from-yellow-200/50 via-orange-200/40 to-purple-300/40"
+            style={{
+              width: `${orb.size}px`,
+              height: `${orb.size}px`,
+              top: `${orb.top}%`,
+              left: `${orb.left}%`,
+              animationDelay: `${orb.delay}s`,
+              animationDuration: `${orb.duration}s`,
+            }}
+          ></div>
+        ))}
+
+        <div
+          className="absolute -top-32 left-1/4 w-[120%] h-64 bg-gradient-to-r from-yellow-200/20 via-transparent to-purple-300/20 blur-3xl animate-drift"
+          style={{ animationDuration: "26s" }}
+        ></div>
+        <div
+          className="absolute -bottom-40 right-1/5 w-[110%] h-72 bg-gradient-to-r from-purple-200/20 via-transparent to-orange-200/20 blur-3xl animate-drift"
+          style={{ animationDuration: "30s", animationDirection: "reverse" }}
+        ></div>
+
+        {twinkles.map((twinkle) => (
+          <span
+            key={twinkle.id}
+            className="absolute text-white opacity-0 animate-twinkle"
+            style={{
+              top: `${twinkle.top}%`,
+              left: `${twinkle.left}%`,
+              animationDelay: `${twinkle.delay}s`,
+              animationDuration: `${twinkle.duration}s`,
+              transform: `scale(${twinkle.scale})`,
+            }}
+          >
+            ✨
+          </span>
+        ))}
+
+        <div className="absolute top-10 right-1/3 w-24 h-24 rounded-full border border-white/30 opacity-40 pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-center animate-orbit">
+            <span className="text-2xl opacity-70">🍌</span>
+          </div>
+        </div>
+
+        <div className="absolute bottom-10 left-1/4 w-28 h-28 rounded-full border border-yellow-300/40 opacity-30 pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-center animate-orbit" style={{ animationDuration: "16s" }}>
+            <span className="text-xl opacity-70">🌈</span>
+          </div>
+        </div>
+
         <div className="absolute top-10 left-10 text-6xl opacity-10 animate-float">🍌</div>
         <div className="absolute top-32 right-20 text-4xl opacity-10 animate-float-delayed">⭐</div>
         <div className="absolute bottom-32 left-20 text-5xl opacity-10 animate-float">🌟</div>
@@ -410,14 +533,40 @@ const GamePage = ({ username, onLogout, onGameComplete }: GamePageProps) => {
               <Coins className="w-5 h-5 animate-spark-explosion" />
               <span className="font-bold">{coins} Coins</span>
             </div>
-            <Button
-              onClick={onLogout}
-              variant="outline"
-              className="flex items-center gap-2 hover:scale-105 transition-bounce border-dashed border-2 border-red-400 hover:border-red-600"
-            >
-              <LogOut className="w-4 h-4" />
-              Logout
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2 hover:scale-105 transition-bounce border-dashed border-2 border-red-400 hover:border-red-600"
+                  disabled={isLoggingOut}
+                >
+                  <LogOut className="w-4 h-4" />
+                  {isLoggingOut ? "Logging out..." : "Logout"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Sign out</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    handleLogoutRequest("logout");
+                  }}
+                  disabled={isLoggingOut}
+                >
+                  This device only
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    handleLogoutRequest("logout-all");
+                  }}
+                  disabled={isLoggingOut}
+                >
+                  All devices
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

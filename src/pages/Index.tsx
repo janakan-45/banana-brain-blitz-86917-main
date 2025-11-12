@@ -3,6 +3,7 @@ import LandingPage from "@/components/LandingPage";
 import LoginPage from "@/components/LoginPage";
 import GamePage from "@/components/GamePage";
 import Leaderboard from "@/components/Leaderboard";
+import { clearStoredSession } from "@/lib/auth";
 
 type ViewState = "landing" | "auth" | "playing" | "leaderboard";
 
@@ -29,7 +30,7 @@ const Index = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("banana-user");
+    clearStoredSession();
     setUsername("");
     setView("landing");
   };
