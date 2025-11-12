@@ -14,12 +14,16 @@ const Index = () => {
   const [finalScore, setFinalScore] = useState(0);
 
   useEffect(() => {
-    // Check for existing user session (Virtual Identity)
     const storedUser = localStorage.getItem("banana-user");
+    const accessToken = localStorage.getItem("accessToken");
+    const refreshToken = localStorage.getItem("refreshToken");
+
     if (storedUser) {
       setUsername(storedUser);
-      // Auto-login if user exists, but start at landing screen
-      // User can choose to continue or change username
+
+      if (accessToken || refreshToken) {
+        setView("playing");
+      }
     }
   }, []);
 
